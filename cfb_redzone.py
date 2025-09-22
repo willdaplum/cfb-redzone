@@ -85,8 +85,7 @@ class ESPNFetcher:
         for event in data["events"]:
 
             # try to get a stable id for the game
-            cid = event.get("id") or event.get("uid") or event.get("gameId") or str(event.get("name"))
-
+            cid = event.get("id")
             # try to get a link to the game's main page
             href = None
             play_href = None
@@ -240,15 +239,16 @@ def main():
         return
 
     # Present games to user to pick which to follow
-    print("Found games:")
-    for i, g in enumerate(games):
+    print("Found games: (Only games on networks specified in config.py are shown.)")
+    available_games = [games[i] for i in range(len(games)) if games[i].broadcast in AVAILABLE_BROADCASTS and AVAILABLE_BROADCASTS[games[i].broadcast] != ""]
+    for i, g in enumerate(available_games):
         print(f"[{i}] {g.short_name}  (play_by_play: {'yes' if g.play_by_play_href else 'no'}) on {g.broadcast}")
     pick_raw = input("Enter indices of games to follow (comma separated, e.g. 0,3,5) or 'all': ").strip()
     if pick_raw.lower() == "all":
-        chosen_games = games
+        chosen_games = available_games
     else:
         idxs = [int(x.strip()) for x in pick_raw.split(",") if x.strip().isdigit()]
-        chosen_games = [games[i] for i in idxs]
+        chosen_games = [available_games[i] for i in idxs]
 
     # Launch all games (one window per game, using the service's profile)
     print("\nLaunching browser windows for each chosen game. For each window, complete login if required.")
