@@ -22,35 +22,14 @@ import pygetwindow as gw
 import pyautogui
 from tqdm import tqdm
 
-# ----------------------------
-# Config: edit these for your env
-# ----------------------------
-CHROME_PATH = {
-    "win": r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-    "mac": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "linux": "/usr/bin/google-chrome"
-}
-
-# Base dir where we create per-service chrome profiles
-BASE_PROFILE_DIR = Path.home() / ".cfb_redzone_profiles"
-
-# Poll interval (seconds)
-POLL_INTERVAL = 12
-
-# How many seconds of "grace" before switching away
-SWITCH_GRACE_SECONDS = 10
-
-# Heuristic: detect "red zone" using play-by-play text or yardline
-RED_ZONE_YARDS = 20
-
-# Example: service -> display name (and optional url template)
-# URL template expected to accept a competition id or game path that fetcher returns.
-SERVICE_URL_TEMPLATES = {
-    "espn": "{game_href}",          # game_href will be taken from the scoreboard JSON
-    "peacock": "{game_href}",
-    "fox": "{game_href}",
-    # You can map other services to their per-game watch URLs here.
-}
+from config import (
+    CHROME_PATH,
+    BASE_PROFILE_DIR,
+    POLL_INTERVAL,
+    SWITCH_GRACE_SECONDS,
+    RED_ZONE_YARDS,
+    SERVICE_URL_TEMPLATES
+)
 
 # ----------------------------
 # Simple data classes
@@ -238,7 +217,7 @@ def bring_window_to_front_by_title_hint(title_hint: str, timeout=6) -> bool:
 # Main controller
 # ----------------------------
 def main():
-    print("CFB RedZone - Proof of concept")
+    print("CFB RedZone")
     # Step 1: ask what services you have
     available = list(SERVICE_URL_TEMPLATES.keys())
     print("Available services:", ", ".join(available))
@@ -277,6 +256,9 @@ def main():
 
     # Map each chosen game to a service (simple heuristic: ask user)
     game_launches = []
+
+    # to be replaced:
+    game_launches = []
     print("\nFor each chosen game, specify which service you'll open it with.")
     for g in chosen_games:
         print(f"Game: {g.short_name}")
@@ -288,6 +270,7 @@ def main():
         template = SERVICE_URL_TEMPLATES.get(svc, "{game_href}")
         url = template.format(game_href=g.competition_href)
         game_launches.append((g, svc, url))
+    # to be replaced ^
 
     # Step 3: Launch all games (one window per game, using the service's profile)
     print("\nLaunching browser windows for each chosen game. For each window, complete login if required.")
@@ -357,3 +340,6 @@ def main():
             time.sleep(POLL_INTERVAL)
     except KeyboardInterrupt:
         print("Stopping monitor. Exiting.")
+
+if __name__ == "__main__":
+    main()
