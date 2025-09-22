@@ -28,7 +28,8 @@ from config import (
     POLL_INTERVAL,
     SWITCH_GRACE_SECONDS,
     RED_ZONE_YARDS,
-    SERVICE_URL_TEMPLATES
+    SERVICE_URL_TEMPLATES,
+    AVAILABLE_BROADCASTS
 )
 
 # ----------------------------
@@ -38,6 +39,7 @@ from config import (
 class Game:
     id: str
     short_name: str         # e.g., "OSU vs PSU"
+    broadcast: str  # e.g., "ESPN"
     competition_href: str   # link to the game's watch/summary page
     play_by_play_href: Optional[str]  # URL to poll for drives / plays
 
@@ -80,10 +82,11 @@ class ESPNFetcher:
         r.raise_for_status()
         data = r.json()
         games: List[Game] = []
-        for comp in data.get("events", []) + data.get("competitions", []):
-            # flexible access depending on version of feed
-            event = comp if "id" in comp else comp
+        for event in data["events"]:
+
+            # try to get a stable id for the game
             cid = event.get("id") or event.get("uid") or event.get("gameId") or str(event.get("name"))
+
             # try to get a link to the game's main page
             href = None
             play_href = None
@@ -99,14 +102,12 @@ class ESPNFetcher:
                 for link in event.get("shortLinkHref", []):
                     href = link
 
-            # build short_name from competitors if possible
-            teams = []
-            for c in event.get("competitors", []):
-                teams.append(c.get("team", {}).get("shortDisplayName") or c.get("displayName") or c.get("abbreviation"))
-            short_name = " vs ".join(teams) if teams else event.get("name", cid)
+
+            short_name = event["shortName"]
+            broadcast = event["competitions"][0]["broadcast"]
 
             if href:
-                games.append(Game(id=str(cid), short_name=short_name, competition_href=href, play_by_play_href=play_href))
+                games.append(Game(id=str(cid), short_name=short_name, competition_href=href, play_by_play_href=play_href, broadcast=broadcast))
         return games
 
     def fetch_latest_play(self, play_by_play_href: str) -> Dict:
@@ -218,19 +219,14 @@ def bring_window_to_front_by_title_hint(title_hint: str, timeout=6) -> bool:
 # ----------------------------
 def main():
     print("CFB RedZone")
-    # Step 1: ask what services you have
-    available = list(SERVICE_URL_TEMPLATES.keys())
-    print("Available services:", ", ".join(available))
-    chosen = input("Which services do you have access to? (comma separated) ").strip().lower().split(",")
-    chosen = [c.strip() for c in chosen if c.strip()]
-    profiles = {}
-    for s in chosen:
-        if s not in SERVICE_URL_TEMPLATES:
-            print(f"Warning: {s} not in known services. I'll still create a profile for it.")
-        pdir = ensure_profile_dir(s)
-        profiles[s] = ServiceProfile(name=s, profile_dir=pdir)
 
-    # Step 2: fetch today's games (ESPN example)
+    # Manage profiles for each avalilable broadcast
+    profiles = {}
+    for broadcast in AVAILABLE_BROADCASTS.keys():
+        pdir = ensure_profile_dir(broadcast)
+        profiles[broadcast] = ServiceProfile(name=broadcast, profile_dir=pdir)
+
+    # Fetch today's games (ESPN api)
     fetcher = ESPNFetcher()
     print("Fetching today's schedule from ESPN...")
     try:
@@ -243,10 +239,10 @@ def main():
         print("No games found. Exiting.")
         return
 
-    # present games to user to pick which to follow
+    # Present games to user to pick which to follow
     print("Found games:")
     for i, g in enumerate(games):
-        print(f"[{i}] {g.short_name}  (play_by_play: {'yes' if g.play_by_play_href else 'no'})")
+        print(f"[{i}] {g.short_name}  (play_by_play: {'yes' if g.play_by_play_href else 'no'}) on {g.broadcast}")
     pick_raw = input("Enter indices of games to follow (comma separated, e.g. 0,3,5) or 'all': ").strip()
     if pick_raw.lower() == "all":
         chosen_games = games
@@ -254,38 +250,21 @@ def main():
         idxs = [int(x.strip()) for x in pick_raw.split(",") if x.strip().isdigit()]
         chosen_games = [games[i] for i in idxs]
 
-    # Map each chosen game to a service (simple heuristic: ask user)
-    game_launches = []
-
-    # to be replaced:
-    game_launches = []
-    print("\nFor each chosen game, specify which service you'll open it with.")
-    for g in chosen_games:
-        print(f"Game: {g.short_name}")
-        svc = input(f" Service (one of {', '.join(chosen)}): ").strip().lower()
-        if svc not in profiles:
-            print("Unknown service, using first available.")
-            svc = next(iter(profiles.keys()))
-        # compute URL for this service - default: use the competition_href as-is
-        template = SERVICE_URL_TEMPLATES.get(svc, "{game_href}")
-        url = template.format(game_href=g.competition_href)
-        game_launches.append((g, svc, url))
-    # to be replaced ^
-
-    # Step 3: Launch all games (one window per game, using the service's profile)
+    # Launch all games (one window per game, using the service's profile)
     print("\nLaunching browser windows for each chosen game. For each window, complete login if required.")
-    for g, svc, url in game_launches:
-        prof = profiles[svc]
-        print(f"Launching {g.short_name} in profile '{svc}' -> {url}")
-        launch_chrome_with_profile(prof.profile_dir, url)
-        prof.launched = True
+    for g in chosen_games:
+        profile = profiles[g.broadcast]
+        url = AVAILABLE_BROADCASTS[g.broadcast]
+        print(f"Launching {g.short_name} in profile '{g.broadcast}' -> {url}")
+        launch_chrome_with_profile(profile.profile_dir, url)
+        profile.launched = True
         time.sleep(0.8)  # small spacing so windows don't interfere
 
     print("\nWaiting 30s for pages to load and for you to login if needed...")
     for i in tqdm(range(30), desc="Initial wait"):
         time.sleep(1)
 
-    # Step 4: Monitoring loop
+    # Monitoring loop
     print("Entering monitoring loop. Ctrl-C to exit.")
     last_switch_time = 0
     currently_featured_game = None

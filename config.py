@@ -29,3 +29,27 @@ SERVICE_URL_TEMPLATES = {
     "fox": "{game_href}",
     # You can map other services to their per-game watch URLs here.
 }
+
+AVAILABLE_BROADCASTS = {
+    "ESPN": "",
+    "ESPN2": "",
+    "ESPN3": "",
+    "ESPN+": "",
+    "ESPNU": "",
+    "ABC": "",
+    "Peacock": "",
+    "Fox": "",
+    "FS1": "",
+    "FS2": "",
+    "CBS": "",
+    "NBC": "",
+    "CBS Sports Network": "",
+    "BTN": "",
+    "ACC Network": "",
+    "SEC Network": "",
+    "Longhorn Network": "",
+    "Pac-12 Network": "",
+    "The CW": "",
+    "TNT": "",
+    # Add/remove/modify depending on what broadcasts you have access to
+}
